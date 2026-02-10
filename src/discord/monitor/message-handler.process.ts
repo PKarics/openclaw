@@ -31,6 +31,7 @@ import { resolveThreadSessionKeys } from "../../routing/session-key.js";
 import { buildUntrustedChannelMetadata } from "../../security/channel-metadata.js";
 import { truncateUtf16Safe } from "../../utils.js";
 import { reactMessageDiscord, removeReactionDiscord } from "../send.js";
+import { transcribeAudioFile, shouldTranscribe } from "../transcription.js";
 import { normalizeDiscordSlug, resolveDiscordOwnerAllowFrom } from "./allow-list.js";
 import { resolveTimestampMs } from "./format.js";
 import {
@@ -87,7 +88,53 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   } = ctx;
 
   const mediaList = await resolveMediaList(message, mediaMaxBytes);
-  const text = messageText;
+
+  // Transcribe audio attachments if enabled
+  const transcriptionConfig = discordConfig?.transcription;
+  const transcriptionTexts: string[] = [];
+
+  if (transcriptionConfig?.enabled && message.attachments && message.attachments.length > 0) {
+    for (let i = 0; i < message.attachments.length; i++) {
+      const attachment = message.attachments[i];
+      const media = mediaList[i];
+
+      if (!media || !attachment) {
+        continue;
+      }
+
+      if (
+        shouldTranscribe(transcriptionConfig, attachment.filename ?? "", attachment.content_type)
+      ) {
+        const result = await transcribeAudioFile({
+          filePath: media.path,
+          filename: attachment.filename ?? "audio",
+          contentType: attachment.content_type,
+          config: transcriptionConfig,
+          fileSize: attachment.size,
+        });
+
+        if (result.success && result.text) {
+          transcriptionTexts.push(result.text);
+        }
+      }
+    }
+  }
+
+  let text = messageText;
+
+  // Append transcriptions to message text
+  if (transcriptionTexts.length > 0) {
+    const transcriptionBlock = transcriptionTexts
+      .map((t) => `[Voice message transcription]: ${t}`)
+      .join("\n\n");
+
+    if (text) {
+      text = `${text}\n\n${transcriptionBlock}`;
+    } else {
+      text = transcriptionBlock;
+    }
+  }
+
   if (!text) {
     logVerbose(`discord: drop message ${message.id} (empty content)`);
     return;

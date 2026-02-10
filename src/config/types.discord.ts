@@ -97,6 +97,19 @@ export type DiscordExecApprovalConfig = {
   sessionFilter?: string[];
 };
 
+export type DiscordTranscriptionConfig = {
+  /** Enable voice message transcription (default: false). */
+  enabled?: boolean;
+  /** Transcription provider (default: "groq"). */
+  provider?: "groq";
+  /** API key for transcription provider. */
+  apiKey?: string;
+  /** Model to use for transcription (default: "whisper-large-v3"). */
+  model?: string;
+  /** Maximum file size in MB to transcribe (default: 25). */
+  maxFileSizeMB?: number;
+};
+
 export type DiscordAccountConfig = {
   /** Optional display name for this account (used in CLI/UI lists). */
   name?: string;
@@ -113,6 +126,8 @@ export type DiscordAccountConfig = {
   token?: string;
   /** Allow bot-authored messages to trigger replies (default: false). */
   allowBots?: boolean;
+  /** Voice message transcription configuration. */
+  transcription?: DiscordTranscriptionConfig;
   /**
    * Controls how guild channel messages are handled:
    * - "open": guild channels bypass allowlists; mention-gating applies
