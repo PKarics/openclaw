@@ -94,6 +94,8 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   const transcriptionTexts: string[] = [];
 
   if (transcriptionConfig?.enabled && message.attachments && message.attachments.length > 0) {
+    // resolveMediaList returns a null-slotted array with 1:1 index alignment to
+    // message.attachments, so mediaList[i] safely corresponds to message.attachments[i].
     for (let i = 0; i < message.attachments.length; i++) {
       const attachment = message.attachments[i];
       const media = mediaList[i];
@@ -113,8 +115,8 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
           fileSize: attachment.size,
         });
 
-        if (result.success && result.text) {
-          transcriptionTexts.push(result.text);
+        if (result.success && result.text?.trim()) {
+          transcriptionTexts.push(result.text.trim());
         }
       }
     }

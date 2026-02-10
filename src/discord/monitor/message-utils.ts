@@ -97,12 +97,15 @@ export async function resolveDiscordChannelInfo(
 export async function resolveMediaList(
   message: Message,
   maxBytes: number,
-): Promise<DiscordMediaInfo[]> {
+): Promise<(DiscordMediaInfo | null)[]> {
   const attachments = message.attachments ?? [];
   if (attachments.length === 0) {
     return [];
   }
-  const out: DiscordMediaInfo[] = [];
+  // Returns a null-slotted array preserving 1:1 index alignment with message.attachments.
+  // Failed downloads produce a null entry rather than being compacted out, so callers
+  // can safely pair mediaList[i] with message.attachments[i].
+  const out: (DiscordMediaInfo | null)[] = [];
   for (const attachment of attachments) {
     try {
       const fetched = await fetchRemoteMedia({
@@ -123,6 +126,7 @@ export async function resolveMediaList(
     } catch (err) {
       const id = attachment.id ?? attachment.url;
       logVerbose(`discord: failed to download attachment ${id}: ${String(err)}`);
+      out.push(null);
     }
   }
   return out;
@@ -263,7 +267,7 @@ function formatDiscordSnapshotAuthor(
 }
 
 export function buildDiscordMediaPayload(
-  mediaList: Array<{ path: string; contentType?: string }>,
+  mediaList: Array<{ path: string; contentType?: string } | null>,
 ): {
   MediaPath?: string;
   MediaType?: string;
@@ -272,9 +276,10 @@ export function buildDiscordMediaPayload(
   MediaUrls?: string[];
   MediaTypes?: string[];
 } {
-  const first = mediaList[0];
-  const mediaPaths = mediaList.map((media) => media.path);
-  const mediaTypes = mediaList.map((media) => media.contentType).filter(Boolean) as string[];
+  const resolved = mediaList.filter((m): m is DiscordMediaInfo => m !== null);
+  const first = resolved[0];
+  const mediaPaths = resolved.map((media) => media.path);
+  const mediaTypes = resolved.map((media) => media.contentType).filter(Boolean) as string[];
   return {
     MediaPath: first?.path,
     MediaType: first?.contentType,
